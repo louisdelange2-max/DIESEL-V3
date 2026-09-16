@@ -308,13 +308,13 @@
         </div>
       </div>
       <div id="dieselFirebaseRecaptcha"></div>
-      <div id="dieselAuthStatus" class="status">Build 4.0.77 · loading Firebase login…</div>
+      <div id="dieselAuthStatus" class="status">Build 4.0.78 · loading Firebase login…</div>
     </div>
   </div>
 
   <div class="header">
     <h1>DIESEL-V4 · FIRESTORE</h1>
-    <div class="muted" style="color:#d1d5db;">Firebase project: diesel-v4-f19ba · build 4.0.77</div>
+    <div class="muted" style="color:#d1d5db;">Firebase project: diesel-v4-f19ba · build 4.0.78</div>
     <div id="dieselFirebaseUserBar" class="firebase-user-bar hidden">
       <span id="dieselFirebaseUserText">Signed in</span>
       <button id="dieselFirebaseSignOutBtn" type="button" class="secondary">Sign Out</button>
@@ -5143,7 +5143,8 @@ function isDieselAdminUser() {
         return String(entry?.fromCompany || entry?.companyName || entry?.sourceCompanyName || "Unassigned").trim() || "Unassigned";
       }
       if (type === "company_settlement") {
-        return String(entry?.fromCompany || entry?.companyName || entry?.sourceCompanyName || "Unassigned").trim() || "Unassigned";
+        // Settlement is grouped under the company PAYING BACK the diesel.
+        return String(entry?.sourceCompanyName || entry?.fromCompany || entry?.companyName || "Unassigned").trim() || "Unassigned";
       }
       return String(
         entry?.companyName ||
@@ -5191,7 +5192,15 @@ function getEntriesForCurrentViewAll() {
       ]);
 
       const requested = String(filterType || "all").trim().toLowerCase();
-      entriesViewFilter = allowedFilters.has(requested) ? requested : "all";
+      const nextFilter = allowedFilters.has(requested) ? requested : "all";
+
+      // Moving to another Entries filter starts with every company collapsed.
+      if (nextFilter !== entriesViewFilter) {
+        dieselOpenEntryCompanies.clear();
+        dieselCompanyEntryLimits.clear();
+      }
+
+      entriesViewFilter = nextFilter;
 
       const buttonMap = {
         all: "entriesFilterAllBtn",
@@ -5897,7 +5906,7 @@ function renderEntries() {
 
         const companyBlocks = Array.from(companyMap.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([companyName, companyEntries]) => {
           const collapseKey = getEntryCompanyCollapseKey(type, companyName);
-          const isOpen = !dieselCollapsedEntryCompanies.has(collapseKey);
+          const isOpen = dieselOpenEntryCompanies.has(collapseKey);
           const limitKey = getCompanyEntryLimitKey(type, companyName);
           const companyLimit = getCompanyEntryLimit(type, companyName);
           companyEntries.sort(compareEntriesByEntryDateDesc);
@@ -6212,7 +6221,7 @@ function bindIf(id, eventName, handler) {
     const DIESEL_COMPANY_ENTRY_BATCH_SIZE = 5;
     let dieselEntriesRenderLimit = DIESEL_LAZY_BATCH_SIZE;
     let dieselOverviewRenderLimit = DIESEL_LAZY_BATCH_SIZE;
-    const dieselCollapsedEntryCompanies = new Set();
+    const dieselOpenEntryCompanies = new Set();
     const dieselCompanyEntryLimits = new Map();
 
     function getCompanyEntryLimitKey(type, companyName) {
@@ -6262,12 +6271,12 @@ function bindIf(id, eventName, handler) {
         const key = String(details.dataset.collapseKey || "");
         if (!key) return;
 
-        // Restore exactly what the user chose after any Firestore/background rerender.
-        details.open = !dieselCollapsedEntryCompanies.has(key);
+        // Restore exactly what the user opened while remaining on this Entries filter.
+        details.open = dieselOpenEntryCompanies.has(key);
 
         details.addEventListener("toggle", () => {
-          if (details.open) dieselCollapsedEntryCompanies.delete(key);
-          else dieselCollapsedEntryCompanies.add(key);
+          if (details.open) dieselOpenEntryCompanies.add(key);
+          else dieselOpenEntryCompanies.delete(key);
         });
       });
     }

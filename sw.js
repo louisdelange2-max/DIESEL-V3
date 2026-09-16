@@ -1,4 +1,4 @@
-const CACHE_NAME = 'diesel-v4-firestore-v477-latest-fill-sync';
+const CACHE_NAME = 'diesel-v4-firestore-v478-entries-collapse';
 
 const APP_SHELL = [
   './manifest.json',
