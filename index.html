@@ -308,13 +308,13 @@
         </div>
       </div>
       <div id="dieselFirebaseRecaptcha"></div>
-      <div id="dieselAuthStatus" class="status">Build 4.0.79 · loading Firebase login…</div>
+      <div id="dieselAuthStatus" class="status">Build 4.0.80 · loading Firebase login…</div>
     </div>
   </div>
 
   <div class="header">
     <h1>DIESEL-V4 · FIRESTORE</h1>
-    <div class="muted" style="color:#d1d5db;">Firebase project: diesel-v4-f19ba · build 4.0.79</div>
+    <div class="muted" style="color:#d1d5db;">Firebase project: diesel-v4-f19ba · build 4.0.80</div>
     <div id="dieselFirebaseUserBar" class="firebase-user-bar hidden">
       <span id="dieselFirebaseUserText">Signed in</span>
       <button id="dieselFirebaseSignOutBtn" type="button" class="secondary">Sign Out</button>
@@ -6318,7 +6318,7 @@ function renderEntries() {
                   ${entry.notes ? `<div style="margin-top:8px;"><span class="muted">Notes:</span> ${escapeHtml(entry.notes)}</div>` : ""}
                   <div class="muted" style="margin-top:8px;">Saved: ${escapeHtml(formatDisplayDateTime(entry.createdAtText || entry.updatedAtText || entry.deviceSavedAt || ""))}</div>
                   <div class="top-actions">
-                    ${isDieselAdminUser() ? `<button class="secondary small-btn" type="button" onclick="editDieselEntry('${entryIdSafe}')">Edit</button><button class="danger small-btn" type="button" onclick="deleteEntry('${entryIdSafe}')">Delete</button>` : ""}
+                    ${isDieselAdminUser() ? `<button class="secondary small-btn" type="button" onclick="editMachineFillEntry('${entryIdSafe}')">Edit</button><button class="danger small-btn" type="button" onclick="deleteEntry('${entryIdSafe}')">Delete</button>` : ""}
                   </div>
                 </div>`;
             }).join("")}
