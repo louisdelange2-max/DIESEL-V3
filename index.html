@@ -308,13 +308,13 @@
         </div>
       </div>
       <div id="dieselFirebaseRecaptcha"></div>
-      <div id="dieselAuthStatus" class="status">Build 4.0.80 · loading Firebase login…</div>
+      <div id="dieselAuthStatus" class="status">Build 4.0.81 · loading Firebase login…</div>
     </div>
   </div>
 
   <div class="header">
     <h1>DIESEL-V4 · FIRESTORE</h1>
-    <div class="muted" style="color:#d1d5db;">Firebase project: diesel-v4-f19ba · build 4.0.80</div>
+    <div class="muted" style="color:#d1d5db;">Firebase project: diesel-v4-f19ba · build 4.0.81</div>
     <div id="dieselFirebaseUserBar" class="firebase-user-bar hidden">
       <span id="dieselFirebaseUserText">Signed in</span>
       <button id="dieselFirebaseSignOutBtn" type="button" class="secondary">Sign Out</button>
@@ -4150,7 +4150,7 @@ async function uploadEntriesToGoogleSheets(uploadAll = false, showOwnStatus = tr
 
       if (!selectedMachine) messages.push("Please select a machine from the Firestore machine master.");
 
-      if (!usesKm && plantNumber) {
+      if (!editingMachineFillEntryId && !usesKm && plantNumber) {
         const previousPlantEntry = getLatestEntryForPlant(plantNumber);
         if (previousPlantEntry) {
           messages.push(`Previous saved hours for plant ${plantNumber}: ${formatNum(previousPlantEntry.machineHours)}`);
@@ -4160,7 +4160,7 @@ async function uploadEntriesToGoogleSheets(uploadAll = false, showOwnStatus = tr
         }
       }
 
-      if (usesKm && regNum) {
+      if (!editingMachineFillEntryId && usesKm && regNum) {
         const previousTruckEntry = getLatestTruckEntryByReg(regNum);
         if (previousTruckEntry && previousTruckEntry.kmReading !== undefined && previousTruckEntry.kmReading !== null && previousTruckEntry.kmReading !== "") {
           messages.push(`Previous KM for reg ${regNum}: ${formatNum(previousTruckEntry.kmReading)}`);
@@ -4204,13 +4204,13 @@ async function uploadEntriesToGoogleSheets(uploadAll = false, showOwnStatus = tr
       if (isKmMachineType(entry.machineType) && !entry.regNum) return `Please enter Reg Num for ${entry.machineType}.`;
       if (isKmMachineType(entry.machineType) && !entry.kmReading) return `Please enter KM reading for ${entry.machineType}.`;
       if (!isKmMachineType(entry.machineType) && entry.machineHours < 0) return "Machine hours cannot be negative.";
-      if (!isKmMachineType(entry.machineType)) {
+      if (!editingMachineFillEntryId && !isKmMachineType(entry.machineType)) {
         const previousPlantEntry = getLatestEntryForPlant(entry.plantNumber);
         if (previousPlantEntry && Number(entry.machineHours) < Number(previousPlantEntry.machineHours || 0)) {
           return `Machine hours for plant ${entry.plantNumber} cannot be lower than previously saved hours (${formatNum(previousPlantEntry.machineHours)}).`;
         }
       }
-      if (isKmMachineType(entry.machineType)) {
+      if (!editingMachineFillEntryId && isKmMachineType(entry.machineType)) {
         const previousTruckEntry = getLatestTruckEntryByReg(entry.regNum);
         if (previousTruckEntry && Number(entry.kmReading) < Number(previousTruckEntry.kmReading || 0)) {
           return `KM reading for truck ${entry.regNum} cannot be lower than previously saved KM (${formatNum(previousTruckEntry.kmReading)}).`;
@@ -4229,7 +4229,7 @@ async function uploadEntriesToGoogleSheets(uploadAll = false, showOwnStatus = tr
       if (!entry.companyName) return "Please select Company.";
       entry.sourceCompanyName = entry.companyName;
 
-      if (!isOtherBowserName(entry.bowserName)) {
+      if (!editingMachineFillEntryId && !isOtherBowserName(entry.bowserName)) {
         const ownBalance = getBowserCompanyBalance(entry.bowserName, entry.companyName);
         if (!hasEnoughDiesel(ownBalance, Number(entry.dieselFilled || 0))) {
           return `${entry.companyName} balance in ${entry.bowserName} is ${formatNum(ownBalance)} L. This company does not have enough diesel for this fill.`;

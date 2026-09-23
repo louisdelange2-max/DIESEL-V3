@@ -1,4 +1,4 @@
-const CACHE_NAME = 'diesel-v4-firestore-v480-machine-fill-edit-route';
+const CACHE_NAME = 'diesel-v4-firestore-v481-admin-edit-validation';
 
 const APP_SHELL = [
   './manifest.json',
