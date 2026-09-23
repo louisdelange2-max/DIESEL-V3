@@ -1,0 +1,6 @@
+# Firebase Functions dependencies
+functions/node_modules/
+
+# Local safety backups
+index-before-*.html
+functions/index-before-*.js

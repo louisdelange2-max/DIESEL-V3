@@ -308,13 +308,13 @@
         </div>
       </div>
       <div id="dieselFirebaseRecaptcha"></div>
-      <div id="dieselAuthStatus" class="status">Build 4.0.78 · loading Firebase login…</div>
+      <div id="dieselAuthStatus" class="status">Build 4.0.79 · loading Firebase login…</div>
     </div>
   </div>
 
   <div class="header">
     <h1>DIESEL-V4 · FIRESTORE</h1>
-    <div class="muted" style="color:#d1d5db;">Firebase project: diesel-v4-f19ba · build 4.0.78</div>
+    <div class="muted" style="color:#d1d5db;">Firebase project: diesel-v4-f19ba · build 4.0.79</div>
     <div id="dieselFirebaseUserBar" class="firebase-user-bar hidden">
       <span id="dieselFirebaseUserText">Signed in</span>
       <button id="dieselFirebaseSignOutBtn" type="button" class="secondary">Sign Out</button>
@@ -4611,7 +4611,19 @@ async function uploadEntriesToGoogleSheets(uploadAll = false, showOwnStatus = tr
       }
     }
 
-function clearForm() {
+let editingMachineFillEntryId = "";
+    let editingMachineFillOriginalEntry = null;
+
+    function resetMachineFillEditMode() {
+      editingMachineFillEntryId = "";
+      editingMachineFillOriginalEntry = null;
+
+      const btn = byId("saveBtn");
+      if (btn) btn.textContent = "Save Entry";
+    }
+
+    function clearForm() {
+      resetMachineFillEditMode();
       byId("entryDate").value = getTodayISO();
       byId("userName").value = "";
       byId("siteName").value = "";
@@ -4749,12 +4761,22 @@ function clearForm() {
         return;
       }
 
+      const editingExistingFill = Boolean(editingMachineFillEntryId);
+
+      // Editing an existing fill is Admin-only.
+      if (editingExistingFill && !isDieselAdminUser()) {
+        resetMachineFillEditMode();
+        byId("saveStatus").textContent = "Admin access is required to edit a machine fill.";
+        return;
+      }
+
       const usesKm = isKmMachineType(byId("machineType").value);
       const regNumValue = byId("regNum").value.trim();
       const kmReadingValue = Number(byId("kmReading").value || 0);
       const currentBowserName = byId("bowserName").value;
 
       let calculatedDieselFilled = Number(byId("dieselFilled").value || 0);
+
       if (bowserNeedsReadings(currentBowserName)) {
         // Normal users must always save against the live authoritative opening.
         // Admins may manually correct the opening reading.
@@ -4763,66 +4785,216 @@ function clearForm() {
         } else if (!String(byId("openBowser").value || "").trim()) {
           applyBowserDefaults(true);
         }
+
         calculatedDieselFilled = syncDieselFilledFromBowserReadings();
       } else {
         byId("openBowser").value = "";
         byId("closeBowser").value = "";
       }
 
-      const truckStats = usesKm ? getTruckDistanceAndEfficiency(regNumValue, kmReadingValue, calculatedDieselFilled) : null;
+      const truckStats = usesKm
+        ? getTruckDistanceAndEfficiency(
+            regNumValue,
+            kmReadingValue,
+            calculatedDieselFilled
+          )
+        : null;
+
       const entry = {
-        id: `diesel-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+        id: editingExistingFill
+          ? editingMachineFillEntryId
+          : `diesel-${Date.now()}-${Math.random().toString(36).slice(2,8)}`,
+
         transactionType: "machine_fill",
         entryDate: byId("entryDate").value || getTodayISO(),
-        userName: dieselCurrentAllowedUser?.name || "",
+
+        // Existing entry keeps its original captured user when edited.
+        userName: editingExistingFill
+          ? (editingMachineFillOriginalEntry?.userName || "")
+          : (dieselCurrentAllowedUser?.name || ""),
+
         siteName: byId("siteName").value.trim(),
         companyName: byId("companyName").value.trim(),
         sourceCompanyName: byId("companyName").value.trim(),
+
         predefinedMachineId: byId("predefinedMachineSelect").value,
+
         machineType: byId("machineType").value,
         machineModel: byId("machineModel").value.trim(),
         regNum: regNumValue,
+
         kmReading: kmReadingValue,
-        distanceTravelled: truckStats && truckStats.distance > 0 ? truckStats.distance : 0,
-        litersPerKm: truckStats && truckStats.litersPerKm ? truckStats.litersPerKm : 0,
-        litersPer100Km: truckStats && truckStats.litersPer100Km ? truckStats.litersPer100Km : 0,
+
+        distanceTravelled:
+          truckStats && truckStats.distance > 0
+            ? truckStats.distance
+            : 0,
+
+        litersPerKm:
+          truckStats && truckStats.litersPerKm
+            ? truckStats.litersPerKm
+            : 0,
+
+        litersPer100Km:
+          truckStats && truckStats.litersPer100Km
+            ? truckStats.litersPer100Km
+            : 0,
+
         plantNumber: byId("plantNumber").value.trim(),
         machineHours: Number(byId("machineHours").value || 0),
+
         dieselFilled: Number(calculatedDieselFilled || 0),
+
         bowserName: byId("bowserName").value.trim(),
         openBowser: Number(byId("openBowser").value || 0),
         closeBowser: Number(byId("closeBowser").value || 0),
-        bowserLitersTaken: bowserNeedsReadings(currentBowserName) ? Number(calculatedDieselFilled || 0) : 0,
+
+        bowserLitersTaken: bowserNeedsReadings(currentBowserName)
+          ? Number(calculatedDieselFilled || 0)
+          : 0,
+
         notes: byId("notes").value.trim(),
-        createdAtText: getNowSAText(),
+
+        createdAtText: editingExistingFill
+          ? (editingMachineFillOriginalEntry?.createdAtText || getNowSAText())
+          : getNowSAText(),
+
         updatedAtText: getNowSAText(),
         deviceSavedAt: getNowSAText(),
         sheetMirrorStatus: "pending"
       };
 
       try {
-        byId("saveStatus").textContent = "Checking selected machine against Firestore Machine Master...";
+        byId("saveStatus").textContent =
+          "Checking selected machine against Firestore Machine Master...";
+
         const liveMachine = await resolveLiveMachineMasterForEntry(entry);
+
         if (!liveMachine) {
-          byId("saveStatus").textContent = "Selected machine is no longer available in the Firestore Machine Master. Reopen the machine list and select the machine again.";
+          byId("saveStatus").textContent =
+            "Selected machine is no longer available in the Firestore Machine Master. Reopen the machine list and select the machine again.";
           return;
         }
 
+        // Keep the real Firestore machine document ID.
+        entry.predefinedMachineId = liveMachine.id;
+
         const error = validateEntry(entry);
+
         if (error) {
           byId("saveStatus").textContent = error;
           return;
         }
 
+        // ------------------------------------------------------
+        // ADMIN EDIT EXISTING MACHINE FILL
+        // ------------------------------------------------------
+        if (editingExistingFill) {
+          if (!isDieselAdminUser()) {
+            throw new Error("Admin access is required to edit a machine fill.");
+          }
+
+          byId("saveStatus").textContent =
+            "Updating machine fill in Firestore...";
+
+          dieselFirebaseFunctions =
+            window.__dieselSharedFunctions ||
+            dieselFirebaseFunctions ||
+            firebase.app().functions("africa-south1");
+
+          const callable =
+            dieselFirebaseFunctions.httpsCallable(
+              "adminUpdateDieselMachineFill"
+            );
+
+          const changes = {
+            entryDate: entry.entryDate,
+            siteName: entry.siteName,
+            companyName: entry.companyName,
+
+            // Backend uses the actual Machine Master document ID.
+            machineId: liveMachine.id,
+            selectedMachineId: liveMachine.id,
+
+            plantNumber: entry.plantNumber,
+            machineType: entry.machineType,
+            machineModel: entry.machineModel,
+            regNum: entry.regNum,
+
+            kmReading: entry.kmReading,
+            machineHours: entry.machineHours,
+
+            dieselFilled: entry.dieselFilled,
+
+            bowserName: entry.bowserName,
+            openBowser: entry.openBowser,
+            closeBowser: entry.closeBowser,
+
+            notes: entry.notes
+          };
+
+          const result = await callable({
+            entryId: editingMachineFillEntryId,
+            changes
+          });
+
+          if (!result?.data?.ok) {
+            throw new Error(
+              result?.data?.message ||
+              "Could not update machine fill."
+            );
+          }
+
+          upsertDieselEntryLocal(
+            result.data.entry || {
+              ...editingMachineFillOriginalEntry,
+              ...changes,
+              id: editingMachineFillEntryId
+            }
+          );
+
+          byId("saveStatus").textContent =
+            "Machine fill updated. Rebuilding balances and latest readings...";
+
+          await rebuildDieselAfterAdminEntryChange();
+          await refreshDieselFromFirestore();
+
+          clearForm();
+          renderAll();
+          showScreen("entries");
+
+          const status =
+            byId("entriesRefreshStatus") ||
+            byId("syncStatus");
+
+          if (status) {
+            status.textContent =
+              "Machine fill updated successfully in Firestore. Google Sheets update is queued automatically.";
+          }
+
+          return;
+        }
+
+        // ------------------------------------------------------
+        // NORMAL NEW MACHINE FILL
+        // ------------------------------------------------------
         byId("saveStatus").textContent = "Saving to Firestore...";
+
         const saved = await saveDieselEntryCallable(entry);
+
         upsertDieselEntryLocal(saved);
         clearForm();
         renderAll();
         showScreen("overview");
-        byId("saveStatus").textContent = "Saved to Firestore. Google Sheets will mirror automatically.";
+
+        byId("saveStatus").textContent =
+          "Saved to Firestore. Google Sheets will mirror automatically.";
+
       } catch (err) {
-        const msg = err && err.message ? err.message : String(err);
+        const msg = err && err.message
+          ? err.message
+          : String(err);
+
         byId("saveStatus").textContent = msg;
 
         if (/Bowser reading changed\. Latest reading is/i.test(msg)) {
@@ -5037,58 +5209,167 @@ async function rebuildDieselAfterAdminEntryChange() {
     }
 
 async function editMachineFillEntry(id) {
-      if (!isDieselAdminUser()) return alert("Admin access is required.");
-      const entryId = String(id || "").trim();
-      const entry = entries.find(item => String(item.id || "").trim() === entryId);
-      if (!entry || getTransactionType(entry) !== "machine_fill") return alert("Machine fill entry was not found.");
-
-      const askText = (label, value) => {
-        const answer = window.prompt(label, String(value ?? ""));
-        return answer === null ? null : String(answer).trim();
-      };
-      const askNumber = (label, value) => {
-        const answer = askText(label, value);
-        if (answer === null) return null;
-        const number = Number(answer);
-        if (!Number.isFinite(number)) throw new Error(`${label} must be a valid number.`);
-        return number;
-      };
-
-      try {
-        const changes = {};
-        let value;
-        value = askText("Entry date (YYYY-MM-DD)", entry.entryDate || ""); if (value === null) return; changes.entryDate = value;
-        value = askText("Site name", entry.siteName || ""); if (value === null) return; changes.siteName = value;
-        value = askText("Company", entry.companyName || ""); if (value === null) return; changes.companyName = value;
-        if (isKmMachineType(entry.machineType)) {
-          value = askNumber("KM reading", entry.kmReading || 0); if (value === null) return; changes.kmReading = value;
-        } else {
-          value = askNumber("Machine hours", entry.machineHours || 0); if (value === null) return; changes.machineHours = value;
-        }
-        value = askNumber("Diesel liters filled", entry.dieselFilled || 0); if (value === null) return; changes.dieselFilled = value;
-        value = askText("Bowser", entry.bowserName || ""); if (value === null) return; changes.bowserName = value;
-        value = askNumber("Open bowser reading", entry.openBowser || 0); if (value === null) return; changes.openBowser = value;
-        value = askNumber("Close bowser reading", entry.closeBowser || 0); if (value === null) return; changes.closeBowser = value;
-        value = askText("Notes", entry.notes || ""); if (value === null) return; changes.notes = value;
-
-        if (!confirm("Save these changes to Firestore and update Google Sheets?")) return;
-        const status = byId("syncStatus");
-        if (status) status.textContent = "Updating machine fill in Firestore...";
-        const callable = dieselFirebaseFunctions.httpsCallable("adminUpdateDieselMachineFill");
-        const result = await callable({ entryId, changes });
-        if (!result?.data?.ok) throw new Error(result?.data?.message || "Could not update machine fill.");
-        upsertDieselEntryLocal(result.data.entry);
-        renderAll();
-        if (status) status.textContent = "Machine fill updated. Rebuilding balances and latest readings...";
-        await rebuildDieselAfterAdminEntryChange();
-        if (status) status.textContent = "Machine fill updated in Firestore. Google Sheets update is queued automatically.";
-        alert("Machine fill updated successfully.");
-      } catch (error) {
-        const message = error?.message || String(error);
-        const status = byId("syncStatus");
-        if (status) status.textContent = `Edit failed. ${message}`;
-        alert(message);
+      if (!isDieselAdminUser()) {
+        return alert("Admin access is required.");
       }
+
+      const entryId = String(id || "").trim();
+
+      const entry = entries.find(
+        item => String(item.id || "").trim() === entryId
+      );
+
+      if (
+        !entry ||
+        getTransactionType(entry) !== "machine_fill"
+      ) {
+        return alert("Machine fill entry was not found.");
+      }
+
+      // Start with a clean normal Fill Diesel form.
+      clearForm();
+
+      editingMachineFillEntryId = entryId;
+      editingMachineFillOriginalEntry = { ...entry };
+
+      // Open the normal Add -> Fill Diesel screen.
+      setAddMode("fill");
+      showScreen("add");
+
+      // Populate fields in dependency order.
+      byId("entryDate").value =
+        entry.entryDate || getTodayISO();
+
+      byId("userName").value =
+        entry.userName ||
+        entry.capturedByName ||
+        entry.createdByName ||
+        "";
+
+      byId("siteName").value =
+        entry.siteName || "";
+
+      // Company must be selected before rebuilding machine options.
+      byId("companyName").value =
+        entry.companyName || "";
+
+      updateSourceCompanyVisibility();
+      refreshMachineOptionsForCompany();
+
+      // Find the real machine in the current Firestore machine master.
+      const wantedMachineId = String(
+        entry.machineId ||
+        entry.predefinedMachineId ||
+        entry.machineDocId ||
+        entry.firestoreMachineId ||
+        entry.selectedMachineId ||
+        ""
+      ).trim();
+
+      const wantedPlant =
+        String(entry.plantNumber || "")
+          .trim()
+          .toLowerCase();
+
+      const wantedReg =
+        String(
+          entry.regNum ||
+          entry.registrationNumber ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+      const machine = (predefinedMachines || []).find(m => {
+        const idMatch =
+          wantedMachineId &&
+          String(m.id || "").trim() === wantedMachineId;
+
+        const plantMatch =
+          wantedPlant &&
+          String(m.plantNumber || "")
+            .trim()
+            .toLowerCase() === wantedPlant;
+
+        const regMatch =
+          wantedReg &&
+          String(m.regNum || "")
+            .trim()
+            .toLowerCase() === wantedReg;
+
+        return idMatch || plantMatch || regMatch;
+      }) || null;
+
+      const machineSelect =
+        byId("predefinedMachineSelect");
+
+      if (machine && machineSelect) {
+        machineSelect.value = machine.id;
+
+        // If it is allowed for the selected company it will exist
+        // in the dropdown. Otherwise leave blank so Admin must
+        // explicitly choose a valid machine.
+        if (machineSelect.value === machine.id) {
+          applySelectedMachine();
+        }
+      }
+
+      // If the old machine is no longer selectable, keep the
+      // dropdown blank rather than silently saving the wrong machine.
+      if (!machineSelect?.value) {
+        byId("machineType").value = "";
+        byId("machineModel").value = "";
+        byId("plantNumber").value = "";
+        byId("regNum").value = "";
+      }
+
+      byId("kmReading").value =
+        entry.kmReading ?? "";
+
+      byId("machineHours").value =
+        entry.machineHours ?? "";
+
+      byId("dieselFilled").value =
+        entry.dieselFilled ?? "";
+
+      byId("bowserName").value =
+        entry.bowserName || "";
+
+      byId("openBowser").value =
+        entry.openBowser ?? "";
+
+      byId("closeBowser").value =
+        entry.closeBowser ?? "";
+
+      byId("notes").value =
+        entry.notes || "";
+
+      updateTruckVisibility();
+      updateBowserReadingVisibility();
+      updateSourceCompanyVisibility();
+      updateBowserSyncWarning();
+      updateLiveCalculation();
+
+      const btn = byId("saveBtn");
+
+      if (btn) {
+        btn.textContent = "Save Changes";
+      }
+
+      const status = byId("saveStatus");
+
+      if (status) {
+        status.textContent =
+          machineSelect?.value
+            ? "Admin edit mode. Review the existing fill and press Save Changes."
+            : "Admin edit mode. The previous machine is no longer selectable for this company. Select the correct machine before saving.";
+      }
+
+      // Put the form at the top of the screen on mobile/PWA.
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
     }
 
 async function deleteEntry(id) {

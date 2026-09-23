@@ -1,0 +1,14 @@
+{
+  "name": "diesel-v4-functions",
+  "description": "Firebase Cloud Functions for Diesel V4",
+  "main": "index.js",
+  "engines": {
+    "node": "20"
+  },
+  "dependencies": {
+    "firebase-admin": "^13.0.0",
+    "firebase-functions": "^6.0.0",
+    "@firebase/app": "^0.14.2"
+  },
+  "private": true
+}
